@@ -46,19 +46,19 @@
         <item name="alertDialogTheme">@style/AlertDialogTheme</item>
     </style>
 
-<!--    <style name="labelTextStyle_1" parent="LabelTextStyle">-->
-<!--        <item name="mapTextSize">32</item>-->
-<!--        <item name="mapTextColor">#DB5461</item>-->
-<!--        <item name="mapTextStrokeWidth">1</item>-->
-<!--        <item name="mapTextStrokeColor">#DB5461</item>-->
-<!--    </style>-->
+    <style name="labelTextStyle_1" parent="LabelTextStyle">
+        <item name="mapTextSize">32</item>
+        <item name="mapTextColor">#DB5461</item>
+        <item name="mapTextStrokeWidth">1</item>
+        <item name="mapTextStrokeColor">#DB5461</item>
+    </style>
 
-<!--    <style name="labelTextStyle_2" parent="LabelTextStyle">-->
-<!--        <item name="mapTextSize">30</item>-->
-<!--        <item name="mapTextColor">#624CAB</item>-->
-<!--        <item name="mapTextStrokeWidth">1</item>-->
-<!--        <item name="mapTextStrokeColor">@android:color/darker_gray</item>-->
-<!--    </style>-->
+    <style name="labelTextStyle_2" parent="LabelTextStyle">
+        <item name="mapTextSize">30</item>
+        <item name="mapTextColor">#624CAB</item>
+        <item name="mapTextStrokeWidth">1</item>
+        <item name="mapTextStrokeColor">@android:color/darker_gray</item>
+    </style>
 
     <style name="TextViewStyle" parent="Widget.MaterialComponents.TextView">
         <item name="android:textColor">@android:color/white</item>
