@@ -1,8 +1,14 @@
 package com.shinjaehun.oreumola.ui
 
 import android.os.Bundle
+import android.util.Log
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.fragment.findNavController
+import androidx.navigation.ui.setupWithNavController
 import com.shinjaehun.oreumola.R
+import com.shinjaehun.oreumola.databinding.ActivityMainBinding
 import com.shinjaehun.oreumola.db.RunDAO
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -12,15 +18,54 @@ private const val TAG = "MainActivity"
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
-    @Inject
-    lateinit var runDAO: RunDAO
+    private lateinit var binding: ActivityMainBinding
+    private lateinit var navHostFragment: NavHostFragment
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
+        setSupportActionBar(binding.toolbar)
+
+        navHostFragment = supportFragmentManager.findFragmentById(R.id.navHostFragment) as NavHostFragment
+        val navController = navHostFragment.navController
+        binding.bottomNavigationView.setupWithNavController(navController)
+        binding.bottomNavigationView.setOnItemReselectedListener {
+        } // 뭔지는 모르겠는데 근디 이게 있어야 네비게이션을 다시 클륵했을 때 리로딩하지 않는다고...
+
+        navHostFragment.findNavController()
+            .addOnDestinationChangedListener { _, destination, _ ->
+                when(destination.id) {
+                    R.id.settingsFragment, R.id.runFragment, R.id.statisticsFragment ->
+                        binding.bottomNavigationView.visibility = View.VISIBLE
+                    else -> binding.bottomNavigationView.visibility = View.GONE
+                }
+            }
+    }
+}
+
+//@AndroidEntryPoint
+//class MainActivity : AppCompatActivity() {
+//
+//    @Inject
+//    lateinit var runDAO: RunDAO
+//    override fun onCreate(savedInstanceState: Bundle?) {
+//        super.onCreate(savedInstanceState)
+//        setContentView(R.layout.activity_main)
+//
 //        Log.d("runDao", "RUNDAO: ${runDAO.hashCode()}")
+//    }
+//}
 
+//class MainActivity : AppCompatActivity() {
+//
+//    @Inject
+//    lateinit var runDAO: RunDAO
+//    override fun onCreate(savedInstanceState: Bundle?) {
+//        super.onCreate(savedInstanceState)
+//        setContentView(R.layout.activity_main)
+//
 //        KakaoMapSdk.init(this, BuildConfig.KAKAO_APP_KEY)
 //
 //        getHashKey()
@@ -75,9 +120,9 @@ class MainActivity : AppCompatActivity() {
 //            }
 //
 //        })
-
-    }
-
+//
+//    }
+//
 //    private fun getHashKey() {
 //        var packageInfo: PackageInfo? = null
 //        try {
@@ -96,4 +141,4 @@ class MainActivity : AppCompatActivity() {
 //            }
 //        }
 //    }
-}
+//}
