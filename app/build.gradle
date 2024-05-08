@@ -96,4 +96,7 @@ dependencies {
     // MPAndroidChart
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
 
+    // LifecycleService
+    implementation 'androidx.lifecycle:lifecycle-service:2.7.0'
+
 }

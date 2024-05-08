@@ -11,7 +11,7 @@ import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import com.shinjaehun.oreumola.R
 import com.shinjaehun.oreumola.databinding.FragmentRunBinding
-import com.shinjaehun.oreumola.di.TrackingUtility
+import com.shinjaehun.oreumola.other.TrackingUtility
 import com.shinjaehun.oreumola.other.Constants.REQUEST_CODE_LOCATION_PERMISSION
 import com.shinjaehun.oreumola.ui.viewmodels.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint

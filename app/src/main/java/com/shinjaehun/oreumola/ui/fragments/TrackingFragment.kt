@@ -1,5 +1,6 @@
 package com.shinjaehun.oreumola.ui.fragments
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -23,6 +24,8 @@ import com.kakao.vectormap.label.Transition
 import com.shinjaehun.oreumola.BuildConfig
 import com.shinjaehun.oreumola.R
 import com.shinjaehun.oreumola.databinding.FragmentTrackingBinding
+import com.shinjaehun.oreumola.other.Constants.ACTION_START_OR_RESUME_SERVICE
+import com.shinjaehun.oreumola.services.TrackingService
 import com.shinjaehun.oreumola.ui.viewmodels.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
@@ -45,8 +48,17 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
 
         KakaoMapSdk.init(requireContext(), BuildConfig.KAKAO_APP_KEY)
 
+        binding.btnToggleRun.setOnClickListener {
+            sendCommandToService(ACTION_START_OR_RESUME_SERVICE)
+        }
         binding.mapView.start(lifeCycleCallback, readyCallback)
     }
+
+    private fun sendCommandToService(action: String) =
+        Intent(requireContext(), TrackingService::class.java).also {
+            it.action = action
+            requireContext().startService(it)
+        }
 
 
     private val lifeCycleCallback = object : MapLifeCycleCallback() {
@@ -58,7 +70,6 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
         override fun onMapPaused() {
             super.onMapPaused()
 //            Toast.makeText(requireContext(), "onMapPaused", Toast.LENGTH_SHORT).show()
-
         }
 
         override fun onMapDestroy() {

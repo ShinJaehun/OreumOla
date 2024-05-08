@@ -1,4 +1,4 @@
-package com.shinjaehun.oreumola.di
+package com.shinjaehun.oreumola.other
 
 import android.Manifest
 import android.content.Context
