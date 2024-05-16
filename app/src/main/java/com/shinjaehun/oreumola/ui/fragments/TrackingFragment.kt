@@ -9,22 +9,35 @@ import android.widget.Toast
 import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Observer
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.KakaoMapSdk
 import com.kakao.vectormap.LatLng
 import com.kakao.vectormap.MapLifeCycleCallback
 import com.kakao.vectormap.MapView
+import com.kakao.vectormap.camera.CameraAnimation
+import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
 import com.kakao.vectormap.label.LabelTextStyle
 import com.kakao.vectormap.label.LabelTransition
 import com.kakao.vectormap.label.Transition
+import com.kakao.vectormap.shape.DotPoints
+import com.kakao.vectormap.shape.MapPoints
+import com.kakao.vectormap.shape.PolylineOptions
+import com.kakao.vectormap.shape.ShapeManager
 import com.shinjaehun.oreumola.BuildConfig
 import com.shinjaehun.oreumola.R
 import com.shinjaehun.oreumola.databinding.FragmentTrackingBinding
+import com.shinjaehun.oreumola.other.Constants.ACTION_PAUSE_SERVICE
 import com.shinjaehun.oreumola.other.Constants.ACTION_START_OR_RESUME_SERVICE
+import com.shinjaehun.oreumola.other.Constants.DURATION
+import com.shinjaehun.oreumola.other.Constants.MAP_ZOOM
+import com.shinjaehun.oreumola.other.Constants.POLYLINE_COLOR
+import com.shinjaehun.oreumola.other.Constants.POLYLINE_WIDTH
+import com.shinjaehun.oreumola.services.Polyline
 import com.shinjaehun.oreumola.services.TrackingService
 import com.shinjaehun.oreumola.ui.viewmodels.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -37,8 +50,14 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
 
     private val viewModel: MainViewModel by viewModels()
 
+    private var isTracking = false
+    private var pathPoints = mutableListOf<Polyline>()
+
     private var _binding: FragmentTrackingBinding? = null
     private val binding get() = _binding!!
+
+    private lateinit var kakaoMap: KakaoMap
+    private lateinit var shapeManager: ShapeManager
 
     private val pos = LatLng.from(33.471374, 126.541913)
 
@@ -49,9 +68,74 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
         KakaoMapSdk.init(requireContext(), BuildConfig.KAKAO_APP_KEY)
 
         binding.btnToggleRun.setOnClickListener {
+//            sendCommandToService(ACTION_START_OR_RESUME_SERVICE)
+            toggleRun()
+        }
+
+        binding.mapView.start(lifeCycleCallback, readyCallback)
+
+        subscribeToObserver()
+    }
+
+    private fun subscribeToObserver() {
+        TrackingService.isTracking.observe(viewLifecycleOwner, Observer {
+            updateTracking(it)
+        })
+
+        TrackingService.pathPoints.observe(viewLifecycleOwner, Observer {
+            pathPoints = it
+            addLatestPolyline()
+            moveCameraToUser()
+        })
+    }
+
+    private fun toggleRun() {
+        if(isTracking) {
+            sendCommandToService(ACTION_PAUSE_SERVICE)
+        } else {
             sendCommandToService(ACTION_START_OR_RESUME_SERVICE)
         }
-        binding.mapView.start(lifeCycleCallback, readyCallback)
+    }
+
+    private fun updateTracking(isTracking: Boolean) {
+        this.isTracking = isTracking
+        if(!isTracking) {
+            binding.btnToggleRun.text = "Start"
+            binding.btnFinishRun.visibility = View.VISIBLE
+        } else {
+            binding.btnToggleRun.text = "Stop"
+            binding.btnFinishRun.visibility = View.GONE
+        }
+    }
+
+    private fun moveCameraToUser(){
+        if (pathPoints.isNotEmpty() && pathPoints.last().isNotEmpty()) {
+            kakaoMap.moveCamera(
+                CameraUpdateFactory.newCenterPosition(pathPoints.last().last(), MAP_ZOOM),
+                CameraAnimation.from(DURATION))
+        }
+    }
+
+    private fun addAllPolylines(){
+        for(polyline in pathPoints) {
+            val polylineOptions = PolylineOptions.from(
+                MapPoints.fromLatLng(polyline),
+                POLYLINE_WIDTH, POLYLINE_COLOR
+            )
+            shapeManager.getLayer().addPolyline(polylineOptions)
+        }
+    }
+
+    private fun addLatestPolyline(){
+        if (pathPoints.isNotEmpty() && pathPoints.last().size > 1) {
+           val preLastLatLng = pathPoints.last()[pathPoints.last().size-2]
+           val lastLatLng = pathPoints.last().last()
+           val polylineOptions = PolylineOptions.from(
+               MapPoints.fromLatLng(mutableListOf(preLastLatLng, lastLatLng)),
+                   POLYLINE_WIDTH, POLYLINE_COLOR)
+
+            shapeManager.getLayer().addPolyline(polylineOptions)
+        }
     }
 
     private fun sendCommandToService(action: String) =
@@ -84,9 +168,14 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
     }
 
     private val readyCallback = object : KakaoMapReadyCallback() {
-        override fun onMapReady(kakaoMap: KakaoMap) {
+        override fun onMapReady(map: KakaoMap) {
 
-            Toast.makeText(requireContext(), "onMapReady", Toast.LENGTH_SHORT).show()
+            kakaoMap = map
+            shapeManager = kakaoMap.shapeManager!!
+
+            addAllPolylines()
+
+//            Toast.makeText(requireContext(), "onMapReady", Toast.LENGTH_SHORT).show()
             val labelLayer = kakaoMap.labelManager?.layer
             val styles = kakaoMap.labelManager?.addLabelStyles(
                 LabelStyles.from(
