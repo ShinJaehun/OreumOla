@@ -37,6 +37,7 @@ import com.shinjaehun.oreumola.other.Constants.DURATION
 import com.shinjaehun.oreumola.other.Constants.MAP_ZOOM
 import com.shinjaehun.oreumola.other.Constants.POLYLINE_COLOR
 import com.shinjaehun.oreumola.other.Constants.POLYLINE_WIDTH
+import com.shinjaehun.oreumola.other.TrackingUtility
 import com.shinjaehun.oreumola.services.Polyline
 import com.shinjaehun.oreumola.services.TrackingService
 import com.shinjaehun.oreumola.ui.viewmodels.MainViewModel
@@ -61,6 +62,7 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
 
     private val pos = LatLng.from(33.471374, 126.541913)
 
+    private var curTimeInMillis = 0L
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -86,6 +88,12 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
             pathPoints = it
             addLatestPolyline()
             moveCameraToUser()
+        })
+
+        TrackingService.timeRunInMillis.observe(viewLifecycleOwner, Observer {
+            curTimeInMillis = it
+            val formattedTime = TrackingUtility.getFormattedStopWatchTime(curTimeInMillis, true)
+            binding.tvTimer.text = formattedTime
         })
     }
 
