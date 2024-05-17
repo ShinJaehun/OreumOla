@@ -57,8 +57,9 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
     private var _binding: FragmentTrackingBinding? = null
     private val binding get() = _binding!!
 
-    private lateinit var kakaoMap: KakaoMap
-    private lateinit var shapeManager: ShapeManager
+    private var kakaoMap: KakaoMap? = null
+
+    private var shapeManager: ShapeManager? = null
 
     private val pos = LatLng.from(33.471374, 126.541913)
 
@@ -118,7 +119,7 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
 
     private fun moveCameraToUser(){
         if (pathPoints.isNotEmpty() && pathPoints.last().isNotEmpty()) {
-            kakaoMap.moveCamera(
+            kakaoMap?.moveCamera(
                 CameraUpdateFactory.newCenterPosition(pathPoints.last().last(), MAP_ZOOM),
                 CameraAnimation.from(DURATION))
         }
@@ -130,7 +131,7 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
                 MapPoints.fromLatLng(polyline),
                 POLYLINE_WIDTH, POLYLINE_COLOR
             )
-            shapeManager.getLayer().addPolyline(polylineOptions)
+            shapeManager?.getLayer()?.addPolyline(polylineOptions)
         }
     }
 
@@ -142,7 +143,7 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
                MapPoints.fromLatLng(mutableListOf(preLastLatLng, lastLatLng)),
                    POLYLINE_WIDTH, POLYLINE_COLOR)
 
-            shapeManager.getLayer().addPolyline(polylineOptions)
+            shapeManager?.getLayer()?.addPolyline(polylineOptions)
         }
     }
 
@@ -179,13 +180,13 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
         override fun onMapReady(map: KakaoMap) {
 
             kakaoMap = map
-            shapeManager = kakaoMap.shapeManager!!
+            shapeManager = kakaoMap!!.shapeManager!!
 
             addAllPolylines()
 
 //            Toast.makeText(requireContext(), "onMapReady", Toast.LENGTH_SHORT).show()
-            val labelLayer = kakaoMap.labelManager?.layer
-            val styles = kakaoMap.labelManager?.addLabelStyles(
+            val labelLayer = kakaoMap!!.labelManager?.layer
+            val styles = kakaoMap!!.labelManager?.addLabelStyles(
                 LabelStyles.from(
                     LabelStyle.from(R.drawable.yellow_marker)
                         .setTextStyles(LabelTextStyle.from(requireContext(), R.style.labelTextStyle_1))
