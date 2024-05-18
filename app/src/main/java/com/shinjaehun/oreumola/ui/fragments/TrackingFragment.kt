@@ -1,15 +1,17 @@
 package com.shinjaehun.oreumola.ui.fragments
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.opengl.GLException
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
+import com.kakao.vectormap.graphics.gl.GLSurfaceView
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
@@ -20,7 +22,6 @@ import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.KakaoMapSdk
 import com.kakao.vectormap.LatLng
 import com.kakao.vectormap.MapLifeCycleCallback
-import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraAnimation
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.kakao.vectormap.label.LabelOptions
@@ -29,7 +30,6 @@ import com.kakao.vectormap.label.LabelStyles
 import com.kakao.vectormap.label.LabelTextStyle
 import com.kakao.vectormap.label.LabelTransition
 import com.kakao.vectormap.label.Transition
-import com.kakao.vectormap.shape.DotPoints
 import com.kakao.vectormap.shape.MapPoints
 import com.kakao.vectormap.shape.PolylineOptions
 import com.kakao.vectormap.shape.ShapeManager
@@ -49,6 +49,12 @@ import com.shinjaehun.oreumola.services.TrackingService
 import com.shinjaehun.oreumola.ui.viewmodels.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
+import java.io.File
+import java.io.FileOutputStream
+import java.nio.IntBuffer
+import javax.microedition.khronos.egl.EGL10
+import javax.microedition.khronos.egl.EGLContext
+import javax.microedition.khronos.opengles.GL10
 
 private const val TAG = "TrackingFragment"
 
@@ -75,7 +81,7 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View? {
         _binding = FragmentTrackingBinding.inflate(inflater, container, false)
 
@@ -90,8 +96,12 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
         KakaoMapSdk.init(requireContext(), BuildConfig.KAKAO_APP_KEY)
 
         binding.btnToggleRun.setOnClickListener {
-//            sendCommandToService(ACTION_START_OR_RESUME_SERVICE)
             toggleRun()
+        }
+
+        binding.btnFinishRun.setOnClickListener {
+            zoomToSeeWholeTrack()
+            endRunAndSaveToDb()
         }
 
         binding.mapView.start(lifeCycleCallback, readyCallback)
@@ -187,6 +197,105 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
                 CameraAnimation.from(DURATION))
         }
     }
+
+    private fun zoomToSeeWholeTrack() {
+        // 어쨌든 이건 정상적으로 작동함!
+
+        var points = mutableListOf<LatLng>()
+        for (polyline in pathPoints) {
+            for (point in polyline) {
+                points.add(point)
+            }
+        }
+
+        if(pathPoints.isNotEmpty()) {
+            kakaoMap?.moveCamera(CameraUpdateFactory.fitMapPoints(points.toTypedArray(), 50))
+        }
+    }
+
+    private fun endRunAndSaveToDb() {
+//        MapCapture.capture(activity, binding.mapView.surfaceView as GLSurfaceView, object MapCapture.)
+        screenShot(binding.mapView.surfaceView as GLSurfaceView)
+//        val bitmap = screenShot(activity?.window!!.decorView!!.rootView) // for fragment
+
+        stopRun()
+    }
+
+    private fun bitmapToImage(bitmap: Bitmap, filename: String) {
+
+        val path = requireActivity().getExternalFilesDir(null)
+        val folder = File(path, "images")
+        folder.mkdirs()
+        val outputFile = File(folder, filename)
+        val outputStream = FileOutputStream(outputFile)
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+        outputStream.flush()
+        outputStream.close()
+    }
+
+    private fun screenShot(surfaceView: GLSurfaceView) {
+        val fileName = "MapCapture_" + System.currentTimeMillis() + ".png"
+
+        surfaceView.queueEvent(object: Runnable{
+            override fun run() {
+                val egl = EGLContext.getEGL() as EGL10
+                val gl = egl.eglGetCurrentContext().gl as GL10
+                val bitmap: Bitmap? =
+                    createBitmapFromGLSurface(
+                        0, 0, surfaceView.width,
+                        surfaceView.height, gl
+                    )
+
+                bitmapToImage(
+                    bitmap!!, fileName
+                )
+
+//                val isSucceed: Boolean =
+
+
+//                activity!!.runOnUiThread(object: Runnable{
+//                    override fun run() {
+//
+//                    }
+//
+//                })
+            }
+
+
+        }
+
+        )
+//
+//            activity!!.runOnUiThread { listener.onCaptured(isSucceed, fileName) }
+
+   }
+
+    private fun createBitmapFromGLSurface(x: Int, y: Int, w: Int, h: Int, gl: GL10): Bitmap? {
+        val bitmapBuffer = IntArray(w * h)
+        val bitmapSource = IntArray(w * h)
+        val intBuffer = IntBuffer.wrap(bitmapBuffer)
+        intBuffer.position(0)
+        try {
+            gl.glReadPixels(x, y, w, h, GL10.GL_RGBA, GL10.GL_UNSIGNED_BYTE, intBuffer)
+            var offset1: Int
+            var offset2: Int
+            for (i in 0 until h) {
+                offset1 = i * w
+                offset2 = (h - i - 1) * w
+                for (j in 0 until w) {
+                    val texturePixel = bitmapBuffer[offset1 + j]
+                    val blue = texturePixel shr 16 and 0xff
+                    val red = texturePixel shl 16 and 0x00ff0000
+                    val pixel = texturePixel and -0xff0100 or red or blue
+                    bitmapSource[offset2 + j] = pixel
+                }
+            }
+        } catch (e: GLException) {
+            return null
+        }
+        return Bitmap.createBitmap(bitmapSource, w, h, Bitmap.Config.ARGB_8888)
+    }
+
 
     private fun addAllPolylines(){
         for(polyline in pathPoints) {
