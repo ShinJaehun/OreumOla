@@ -4,11 +4,11 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.opengl.GLException
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
-import com.kakao.vectormap.graphics.gl.GLSurfaceView
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
@@ -24,6 +24,7 @@ import com.kakao.vectormap.LatLng
 import com.kakao.vectormap.MapLifeCycleCallback
 import com.kakao.vectormap.camera.CameraAnimation
 import com.kakao.vectormap.camera.CameraUpdateFactory
+import com.kakao.vectormap.graphics.gl.GLSurfaceView
 import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
@@ -50,7 +51,9 @@ import com.shinjaehun.oreumola.ui.viewmodels.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.IntBuffer
 import javax.microedition.khronos.egl.EGL10
 import javax.microedition.khronos.egl.EGLContext
@@ -100,7 +103,9 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
         }
 
         binding.btnFinishRun.setOnClickListener {
-            zoomToSeeWholeTrack()
+            // 이상하게 이렇게 처리하니까...
+            // zoom하기 전에 스크린캡처를 해버렸다?? 이유는 모르겠음.
+//            zoomToSeeWholeTrack()
             endRunAndSaveToDb()
         }
 
@@ -131,6 +136,8 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
         if(isTracking) {
             menu?.getItem(0)?.isVisible = true
             sendCommandToService(ACTION_PAUSE_SERVICE)
+            // 걷다가 중지할 때마다 지금까지 경로를 zoom하는 걸로...?
+            zoomToSeeWholeTrack()
         } else {
             sendCommandToService(ACTION_START_OR_RESUME_SERVICE)
         }
@@ -214,23 +221,29 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
     }
 
     private fun endRunAndSaveToDb() {
-//        MapCapture.capture(activity, binding.mapView.surfaceView as GLSurfaceView, object MapCapture.)
         screenShot(binding.mapView.surfaceView as GLSurfaceView)
 //        val bitmap = screenShot(activity?.window!!.decorView!!.rootView) // for fragment
 
         stopRun()
     }
 
-    private fun bitmapToImage(bitmap: Bitmap, filename: String) {
-
+    private fun bitmapToImage(bitmap: Bitmap, filename: String): Boolean {
         val path = requireActivity().getExternalFilesDir(null)
         val folder = File(path, "images")
         folder.mkdirs()
         val outputFile = File(folder, filename)
-        val outputStream = FileOutputStream(outputFile)
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-        outputStream.flush()
-        outputStream.close()
+        try {
+            val outputStream = FileOutputStream(outputFile)
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+            outputStream.flush()
+            outputStream.close()
+            return true
+        } catch (e: FileNotFoundException) {
+            Timber.e("FileNotFoundException : " + e.message)
+        } catch (e: IOException) {
+            Timber.e("IOException : " + e.message)
+        }
+        return false
     }
 
     private fun screenShot(surfaceView: GLSurfaceView) {
@@ -241,33 +254,21 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
                 val egl = EGLContext.getEGL() as EGL10
                 val gl = egl.eglGetCurrentContext().gl as GL10
                 val bitmap: Bitmap? =
-                    createBitmapFromGLSurface(
-                        0, 0, surfaceView.width,
-                        surfaceView.height, gl
-                    )
+                    createBitmapFromGLSurface(0, 0, surfaceView.width, surfaceView.height, gl)
 
-                bitmapToImage(
-                    bitmap!!, fileName
-                )
+                bitmapToImage(bitmap!!, fileName)
 
-//                val isSucceed: Boolean =
-
-
+                // 예제에는 이런 식으로 구현되어 있던데... (callback 이용)
+//                val isSucceed: Boolean = bitmapToImage(bitmap!!, fileName)
 //                activity!!.runOnUiThread(object: Runnable{
 //                    override fun run() {
 //
 //                    }
 //
 //                })
+
             }
-
-
-        }
-
-        )
-//
-//            activity!!.runOnUiThread { listener.onCaptured(isSucceed, fileName) }
-
+        })
    }
 
     private fun createBitmapFromGLSurface(x: Int, y: Int, w: Int, h: Int, gl: GL10): Bitmap? {
@@ -291,6 +292,7 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
                 }
             }
         } catch (e: GLException) {
+            Timber.e("GLException : " + e.message)
             return null
         }
         return Bitmap.createBitmap(bitmapSource, w, h, Bitmap.Config.ARGB_8888)
