@@ -17,6 +17,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
 import androidx.navigation.fragment.findNavController
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.KakaoMapSdk
@@ -37,6 +38,7 @@ import com.kakao.vectormap.shape.ShapeManager
 import com.shinjaehun.oreumola.BuildConfig
 import com.shinjaehun.oreumola.R
 import com.shinjaehun.oreumola.databinding.FragmentTrackingBinding
+import com.shinjaehun.oreumola.db.Run
 import com.shinjaehun.oreumola.other.Constants.ACTION_PAUSE_SERVICE
 import com.shinjaehun.oreumola.other.Constants.ACTION_START_OR_RESUME_SERVICE
 import com.shinjaehun.oreumola.other.Constants.ACTION_STOP_SERVICE
@@ -55,9 +57,11 @@ import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.IntBuffer
+import java.util.Calendar
 import javax.microedition.khronos.egl.EGL10
 import javax.microedition.khronos.egl.EGLContext
 import javax.microedition.khronos.opengles.GL10
+import kotlin.math.round
 
 private const val TAG = "TrackingFragment"
 
@@ -80,6 +84,8 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
     private var curTimeInMillis = 0L
 
     private var menu: Menu? = null
+
+    private var weight = 80f
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -104,9 +110,9 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
 
         binding.btnFinishRun.setOnClickListener {
             // 이상하게 이렇게 처리하니까...
-            // zoom하기 전에 스크린캡처를 해버렸다?? 이유는 모르겠음.
+            // zoom하기 전에 지도를 캡처해버렸다?? 이유는 모르겠음.
 //            zoomToSeeWholeTrack()
-            endRunAndSaveToDb()
+            endRunAndSaveToDb(binding.mapView.surfaceView as GLSurfaceView)
         }
 
         binding.mapView.start(lifeCycleCallback, readyCallback)
@@ -220,12 +226,12 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
         }
     }
 
-    private fun endRunAndSaveToDb() {
-        screenShot(binding.mapView.surfaceView as GLSurfaceView)
-//        val bitmap = screenShot(activity?.window!!.decorView!!.rootView) // for fragment
-
-        stopRun()
-    }
+//    private fun endRunAndSaveToDb() {
+//        screenShot(binding.mapView.surfaceView as GLSurfaceView)
+////        val bitmap = screenShot(activity?.window!!.decorView!!.rootView) // for fragment
+//
+//        stopRun()
+//    }
 
     private fun bitmapToImage(bitmap: Bitmap, filename: String): Boolean {
         val path = requireActivity().getExternalFilesDir(null)
@@ -246,17 +252,63 @@ class TrackingFragment: Fragment(R.layout.fragment_tracking) {
         return false
     }
 
-    private fun screenShot(surfaceView: GLSurfaceView) {
+    private fun endRunAndSaveToDb(surfaceView: GLSurfaceView) {
         val fileName = "MapCapture_" + System.currentTimeMillis() + ".png"
-
         surfaceView.queueEvent(object: Runnable{
+            // 어쨌든 이 과정을 Runnable에서 한다는 거 자체가 맘에 안들어
             override fun run() {
                 val egl = EGLContext.getEGL() as EGL10
                 val gl = egl.eglGetCurrentContext().gl as GL10
-                val bitmap: Bitmap? =
-                    createBitmapFromGLSurface(0, 0, surfaceView.width, surfaceView.height, gl)
 
-                bitmapToImage(bitmap!!, fileName)
+                val bitmap = createBitmapFromGLSurface(0, 0, surfaceView.width, surfaceView.height, gl)
+                if (bitmap == null) {
+                    Timber.e("bitmap 파일 생성 실패(null)")
+                    Snackbar.make(requireActivity().findViewById(R.id.rootView),
+                        "Failed to save run", Snackbar.LENGTH_LONG).show()
+                    stopRun()
+                    return // 이렇게 종료해도 되나요?
+                }
+
+                var distanceInMeters = 0
+                for (polyline in pathPoints) {
+                    distanceInMeters += TrackingUtility.calculatePolylineLength(polyline).toInt()
+                }
+                val avgSpeed = round((distanceInMeters / 1000f) / (curTimeInMillis / 1000f / 60 / 60) * 10) / 10f
+                val dateTimestamp = Calendar.getInstance().timeInMillis
+                val caloriesBurned = ((distanceInMeters / 1000f) * weight).toInt()
+                val run = Run(bitmap, dateTimestamp, avgSpeed, distanceInMeters, curTimeInMillis, caloriesBurned)
+                viewModel.insertRun(run)
+                Snackbar.make(requireActivity().findViewById(R.id.rootView),
+                    "Run saved successfully", Snackbar.LENGTH_LONG).show()
+
+                bitmapToImage(bitmap, fileName)
+                stopRun()
+
+                // 이렇게 하면 안 되는 이유가 멀까?
+//                createBitmapFromGLSurface(0, 0, surfaceView.width, surfaceView.height, gl).also {
+//                    if (it == null) {
+//                        Timber.e("bitmap 파일 생성 실패(null)")
+//                        Snackbar.make(requireActivity().findViewById(R.id.rootView),
+//                            "Failed to save run", Snackbar.LENGTH_LONG).show()
+//                    } else {
+////                        bitmapToImage(it, fileName)
+//
+//                        var distanceInMeters = 0
+//                        for (polyline in pathPoints) {
+//                            distanceInMeters += TrackingUtility.calculatePolylineLength(polyline).toInt()
+//                        }
+//                        val avgSpeed = round((distanceInMeters / 1000f) / (curTimeInMillis / 1000f / 60 / 60) * 10) / 10f
+//                        val dateTimestamp = Calendar.getInstance().timeInMillis
+//                        val caloriesBurned = ((distanceInMeters / 1000f) * weight).toInt()
+//                        val run = Run(null, dateTimestamp, avgSpeed, distanceInMeters, curTimeInMillis, caloriesBurned)
+//                        viewModel.insertRun(run)
+//                        Snackbar.make(requireActivity().findViewById(R.id.rootView),
+//                            "Run saved successfully", Snackbar.LENGTH_LONG).show()
+//
+//                    }
+//                }
+//
+//                stopRun()
 
                 // 예제에는 이런 식으로 구현되어 있던데... (callback 이용)
 //                val isSucceed: Boolean = bitmapToImage(bitmap!!, fileName)
